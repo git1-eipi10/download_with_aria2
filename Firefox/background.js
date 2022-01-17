@@ -9,6 +9,7 @@ browser.runtime.onInstalled.addListener(({reason, previousVersion}) => {
             'proxy_resolve': aria2RPC.proxy.resolve,
             'capture_mode': aria2RPC.capture.mode,
             'capture_type': aria2RPC.capture.fileExt,
+            'capture_size': aria2RPC.capture.fileSize,
             'capture_resolve': aria2RPC.capture.resolve,
             'capture_reject': aria2RPC.capture.reject,
             'folder_mode': aria2RPC.folder.mode,
@@ -40,12 +41,13 @@ browser.downloads.onCreated.addListener(async ({id, url, referrer, filename}) =>
     var domain = getDomainFromUrl(referer);
     var storeId = tabs[0].cookieStoreId;
 
-    captureDownload(domain, getFileExtension(filename)) &&
+    if (await captureDownload(domain, getFileExtension(filename), url)) {
         browser.downloads.cancel(id).then(() => {
             browser.downloads.erase({id}).then(() => {
                 startDownload({url, referer, domain, filename, storeId});
             });
         }).catch(error => showNotification('Download is already complete'));
+    }
 });
 
 async function startDownload({url, referer, domain, filename, storeId}, options = {}) {
@@ -57,11 +59,26 @@ async function startDownload({url, referer, domain, filename, storeId}, options 
     aria2RPCCall({method: 'aria2.addUri', params: [[url], options]}, result => showNotification(url));
 }
 
-function captureDownload(domain, type) {
-    return aria2RPC['capture_reject'].includes(domain) ? false :
-        aria2RPC['capture_mode'] === '2' ? true :
-        aria2RPC['capture_resolve'].includes(domain) ? true :
-        aria2RPC['capture_type'].includes(type) ? true : false;
+async function captureDownload(domain, type, url) {
+    if (aria2RPC['capture_reject'].includes(domain)) {
+        return false;
+    }
+    if (aria2RPC['capture_mode'] === '2') {
+        return true;
+    }
+    if (aria2RPC['capture_resolve'].includes(domain)) {
+        return true;
+    }
+    if (aria2RPC['capture_type'].includes(type)) {
+        return true;
+    }
+// Use Fetch to resolve fileSize untill Mozilla fixes downloadItem.fileSize
+// Some websites will not support this workaround due to their access policy
+// See https://bugzilla.mozilla.org/show_bug.cgi?id=1666137 for more details
+    if (aria2RPC['capture_size'] > 0 && await fetch(url, {method: 'HEAD'}).then(response => response.headers.get('content-length')) >= aria2RPC['capture_size']) {
+        return true;
+    }
+    return false;
 }
 
 function getDomainFromUrl(url) {
