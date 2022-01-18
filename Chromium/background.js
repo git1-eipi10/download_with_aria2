@@ -3,7 +3,7 @@ var download_info = new Object()
 download_info = {};
 
 chrome.runtime.onInstalled.addListener(({reason, previousVersion}) => {
-    reason === 'update' && previousVersion < '3.7.5' && setTimeout(() => {
+    reason === 'update' && previousVersion < '3.7.6' && aria2RPC.jsonrpc && setTimeout(() => {
         var patch = {
             'jsonrpc_uri': aria2RPC.jsonrpc.uri,
             'secret_token': aria2RPC.jsonrpc.token,
