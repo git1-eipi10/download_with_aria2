@@ -8,9 +8,7 @@ document.querySelectorAll('[data-option] > button, [data-global] > button').forE
 });
 
 'browser' in this ? document.querySelector('[data-chrome]').remove() : document.querySelector('[data-firefox]').remove();
-
-document.querySelector('#manager').style.display = location.search === '?popup' ? 'none' : 'block';
-document.querySelector('#back_btn').style.display = location.search === '?popup' ? 'inline-block' : 'none';
+location.search === '?popup' ? document.querySelector('#manager').style.display =  'none' : document.querySelector('#back_btn').style.display = 'none';
 
 document.querySelector('#back_btn').addEventListener('click', event => {
     open('/popup/index.html', '_self');
@@ -28,10 +26,11 @@ document.querySelector('#export_btn').addEventListener('click', event => {
     saver.click();
 });
 
-document.querySelector('#import_btn').addEventListener('change', async event => {
-    var data = await readFileAsBinary(event.target.files[0]);
-    chrome.storage.local.set(JSON.parse(atob(data)));
-    location.reload();
+document.querySelector('#import_btn').addEventListener('change', event => {
+    readFileAsBinary(event.target.files[0], data => {
+        chrome.storage.local.set(JSON.parse(atob(data)));
+        location.reload();
+    });
 });
 
 document.querySelector('#aria2_btn').addEventListener('click', event => {
