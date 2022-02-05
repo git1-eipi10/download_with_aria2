@@ -1,121 +1,161 @@
-browser.runtime.onInstalled.addListener(({reason, previousVersion}) => {
-    reason === 'update' && previousVersion < '3.7.6' && aria2RPC.jsonrpc && setTimeout(() => {
-        var patch = {
-            'jsonrpc_uri': aria2RPC.jsonrpc.uri,
-            'secret_token': aria2RPC.jsonrpc.token,
-            'refresh_interval': aria2RPC.jsonrpc.refresh,
-            'user_agent': aria2RPC.useragent,
-            'proxy_server': aria2RPC.proxy.uri,
-            'proxy_resolve': aria2RPC.proxy.resolve,
-            'capture_mode': aria2RPC.capture.mode,
-            'capture_type': aria2RPC.capture.fileExt,
-            'capture_size': aria2RPC.capture.fileSize,
-            'capture_resolve': aria2RPC.capture.resolve,
-            'capture_reject': aria2RPC.capture.reject,
-            'folder_mode': aria2RPC.folder.mode,
-            'folder_path': aria2RPC.folder.uri
-        };
-        aria2RPC = patch;
-        chrome.storage.local.clear();
-        chrome.storage.local.set(aria2RPC);
-    }, 300);
-});
-
 browser.contextMenus.create({
-    title: browser.i18n.getMessage('extension_name'),
+    title: browser.runtime.getManifest().name,
     id: 'downwitharia2firefox',
     contexts: ['link']
 });
 
 browser.contextMenus.onClicked.addListener(({linkUrl, pageUrl}, {cookieStoreId}) => {
-    startDownload({url: linkUrl, referer: pageUrl, storeId: cookieStoreId, domain: getDomainFromUrl(pageUrl)});
+    startDownload(linkUrl, pageUrl, getDomainFromUrl(pageUrl), cookieStoreId);
+});
+
+browser.storage.local.get(null, async json => {
+    aria2Store = json['jsonrpc_uri'] ? json : await fetch('/options.json').then(response => response.json());
+    statusIndicator();
+    !json['jsonrpc_uri'] && chrome.storage.local.set(aria2Store);
+    aria2Store['capture_api'] = aria2Store['capture_api'] ?? '1';
+});
+
+browser.storage.onChanged.addListener(changes => {
+    Object.entries(changes).forEach(([key, {newValue}]) => aria2Store[key] = newValue);
+    if (changes['jsonrpc_uri'] || changes['secret_token']) {
+        self.jsonrpc && jsonrpc.readyState === 1 && jsonrpc.close();
+        statusIndicator();
+    }
 });
 
 browser.downloads.onCreated.addListener(async ({id, url, referrer, filename}) => {
-    if (aria2RPC['capture_mode'] === '0' || url.startsWith('blob') || url.startsWith('data')) {
+    if (aria2Store['capture_api'] === '1' || aria2Store['capture_mode'] === '0' || url.startsWith('blob') || url.startsWith('data')) {
         return;
     }
-
-    var tabs = await browser.tabs.query({active: true, currentWindow: true});
-    var referer = referrer && referrer !== 'about:blank' ? referrer : tabs[0].url;
+    var {tabUrl, cookieStoreId} = await browser.tabs.query({active: true, currentWindow: true}).then(([{url, cookieStoreId}]) => ({tabUrl: url, cookieStoreId}));
+    var referer = referrer ? referrer : tabUrl ?? 'about:blank';
     var domain = getDomainFromUrl(referer);
-    var storeId = tabs[0].cookieStoreId;
-
-    if (await captureDownload(domain, getFileExtension(filename), url)) {
-        browser.downloads.cancel(id).then(() => {
-            browser.downloads.erase({id}).then(() => {
-                startDownload({url, referer, domain, filename, storeId});
-            });
-        }).catch(error => showNotification('Download is already complete'));
-    }
+    captureDownload(domain, getFileExtension(filename)) && browser.downloads.cancel(id).then(async () => {
+        await browser.downloads.erase({id}) && startDownload(url, referer, domain, cookieStoreId, await getFirefoxExclusive(filename));
+    }).catch(error => showNotification('Download is already complete'));
 });
 
-async function startDownload({url, referer, domain, filename, storeId}, options = {}) {
+browser.webRequest.onHeadersReceived.addListener(async ({statusCode, tabId, url, originUrl, responseHeaders}) => {
+    if (aria2Store['capture_api'] === '0' || aria2Store['capture_mode'] === 0 || statusCode !== 200) {
+        return;
+    }
+    var match = [{}, 'content-disposition', 'content-type', 'content-length'];
+    responseHeaders.forEach(({name, value}) => match.includes(name = name.toLowerCase()) && (match[0][name.slice(name.indexOf('-') + 1)] = value));
+    var {disposition, type, length} = match[0];
+    if (type.startsWith('application') || disposition && disposition.startsWith('attachment')) {
+        console.log('--------------------------\n' + url + '\n' + originUrl + '\n');
+        var out = disposition ? getFileName(disposition) : '';
+        console.log(out);
+        var domain = getDomainFromUrl(originUrl);
+        if (captureDownload(domain, getFileExtension(out), length)) {
+            var {cookieStoreId} = await browser.tabs.get(tabId);
+            startDownload(url, originUrl, domain, cookieStoreId, {out});
+            return {cancel: true};
+        }
+    }
+}, {urls: ["<all_urls>"], types: ["main_frame", "sub_frame"]}, ["blocking", "responseHeaders"]);
+
+async function statusIndicator() {
+    jsonrpc = await aria2RPCStatus(text => {
+        browser.browserAction.setBadgeText({text: text === '0' ? '' : text});
+        browser.browserAction.setBadgeBackgroundColor({color: text ? '#3cc' : '#c33'});
+    });
+}
+
+async function startDownload(url, referer, domain, storeId = 'firefox-default', options = {}) {
     var cookies = await browser.cookies.getAll({url, storeId});
-    options['header'] = ['Cookie:', 'Referer: ' + referer, 'User-Agent: ' + aria2RPC['user_agent']];
+    options['header'] = ['Cookie:', 'Referer: ' + referer, 'User-Agent: ' + aria2Store['user_agent']];
     cookies.forEach(({name, value}) => options['header'][0] += ' ' + name + '=' + value + ';');
-    filename && (options = {...options, ...await getFirefoxExclusive(filename)});
-    options['all-proxy'] = aria2RPC['proxy_resolve'].includes(domain) ? aria2RPC['proxy_server'] : '';
+    options['all-proxy'] = aria2Store['proxy_include'].includes(domain) ? aria2Store['proxy_server'] : '';
     aria2RPCCall({method: 'aria2.addUri', params: [[url], options]}, result => showNotification(url));
 }
 
-async function captureDownload(domain, type, url) {
-    if (aria2RPC['capture_reject'].includes(domain)) {
-        return false;
-    }
-    if (aria2RPC['capture_mode'] === '2') {
-        return true;
-    }
-    if (aria2RPC['capture_resolve'].includes(domain)) {
-        return true;
-    }
-    if (aria2RPC['capture_type'].includes(type)) {
-        return true;
-    }
-// Use Fetch to resolve fileSize untill Mozilla fixes downloadItem.fileSize
-// Some websites will not support this workaround due to their access policy
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1666137 for more details
-    if (aria2RPC['capture_size'] > 0 && await fetch(url, {method: 'HEAD'}).then(response => response.headers.get('content-length')) >= aria2RPC['capture_size']) {
-        return true;
-    }
-    return false;
-}
-
-function getDomainFromUrl(url) {
-    var host = /^[^:]+:\/\/([^\/]+)\//.exec(url)[1];
-    var hostname = /:\d{2,5}$/.test(host) ? host.slice(0, host.lastIndexOf(':')) : host;
-    if (hostname.includes(':')) {
-        return hostname.slice(1, -1);
-    }
-    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$|^[^\.]+\.[^\.]+$/.test(hostname)) {
-        return hostname;
-    }
-    var suffix = /([^\.]+)\.([^\.]+)\.([^\.]+)$/.exec(hostname);
-    var gSLD = ['com', 'net', 'org', 'edu', 'gov', 'co', 'ne', 'or', 'me'];
-    return gSLD.includes(suffix[2]) ? suffix[1] + '.' + suffix[2] + '.' + suffix[3] : suffix[2] + '.' + suffix[3];
+function captureDownload(domain, type, size) {
+    return aria2Store['capture_exclude'].includes(domain) ? false :
+        aria2Store['capture_reject'].includes(type) ? false :
+        aria2Store['capture_mode'] === '2' ? true :
+        aria2Store['capture_include'].includes(domain) ? true :
+        aria2Store['capture_resolve'].includes(type) ? true :
+        aria2Store['capture_size'] > 0 && size >= aria2Store['capture_size'] ? true : false;
 }
 
 async function getFirefoxExclusive(uri) {
-    var platform = await browser.runtime.getPlatformInfo();
-    var index = platform.os === 'win' ? uri.lastIndexOf('\\') : uri.lastIndexOf('/');
+    var {os} = await browser.runtime.getPlatformInfo();
+    var index = os === 'win' ? uri.lastIndexOf('\\') : uri.lastIndexOf('/');
     var out = uri.slice(index + 1);
-    var dir = aria2RPC['folder_mode'] === '1' ? uri.slice(0, index + 1) : aria2RPC.folder['mode'] === '2' ? aria2RPC['folder_path'] : null;
-    if (dir) {
-        return {dir, out};
+    var dir = aria2Store['folder_mode'] === '1' ? uri.slice(0, index + 1) : aria2Store['folder_mode'] === '2' ? aria2Store['folder_path'] : null;
+    return dir ? {dir, out} : {out};
+}
+
+function getFileName(disposition) {
+    var RFC2047 = /filename="?(=\?[^;]+\?=)/.exec(disposition);
+    if (RFC2047) {
+        return decodeRFC2047(RFC2047[1]);
     }
-    return {out};
+    var RFC5987 = /filename\*="?([^;]+''[^";]+)/i.exec(disposition);
+    if (RFC5987) {
+        return decodeRFC5987(RFC5987[1]);
+    }
+    var match = /filename="?([^";]+);?/.exec(disposition);
+    if (match) {
+        return decodeFileName(match.pop());
+    }
+    return console.log('Not supported', disposition) ?? '';
 }
 
-function getFileExtension(filename) {
-    return filename.slice(filename.lastIndexOf('.') + 1).toLowerCase();
+function decodeISO8859(text) {
+    var result = [];
+    [...text].forEach(s => {
+        var c = s.charCodeAt(0);
+        c < 256 && result.push(c);
+    });
+    return new TextDecoder(document.characterSet ?? 'UTF-8').decode(Uint8Array.from(result));
 }
 
-function aria2RPCClient() {
-    aria2RPCCall({method: 'aria2.getGlobalStat'}, ({numActive}) => {
-        browser.browserAction.setBadgeBackgroundColor({color: '#3cc'});
-        browser.browserAction.setBadgeText({text: numActive === '0' ? '' : numActive});
-    }, error => {
-        browser.browserAction.setBadgeBackgroundColor({color: '#c33'});
-        browser.browserAction.setBadgeText({text: 'E'});
-    }, true);
+function decodeRFC5987(text) {
+    console.log('RFC5987', text);
+    var head = text.slice(0, text.indexOf('\''));
+    var body = text.slice(text.lastIndexOf('\'') + 1);
+    if (['utf-8', 'utf8'].includes(head.toLowerCase())) {
+        return decodeFileName(body);
+    }
+    var result = [];
+    (body.match(/%[0-9a-fA-F]{2}|./g) ?? []).forEach(s => {
+        var c = s.length === 3 ? parseInt(s.slice(1), 16) : s.charCodeAt(0);
+        c < 256 && result.push(c);
+    });
+    return new TextDecoder(head).decode(Uint8Array.from(result));
+}
+
+function decodeRFC2047(text) {
+    console.log('RFC2047', text);
+    var result = '';
+    text.split(/\s+/).forEach(s => {
+        if (s.startsWith('=?') && s.endsWith('?=')) {
+            var temp = s.slice(2, -2);
+            var qs = temp.indexOf('?');
+            var qe = temp.lastIndexOf('?');
+            if (qe - qs === 2) {
+                var code = temp.slice(0, qs);
+                var type = temp.slice(qs + 1, qe).toLowerCase();
+                var data = temp.slice(qe + 1);
+                var decode = type === 'b' ? [...atob(data)].map(s => s.charCodeAt(0)) :
+                    type === 'q' ? (parts[2].match(/=[0-9a-fA-F]{2}|./g) || []).map(v => v.length === 3 ?
+                        parseInt(v.slice(1), 16) : v === '_' ? 0x20 : v.charCodeAt(0)) : null;
+            }
+        }
+        if (decode) {
+            result += new TextDecoder(code).decode(Uint8Array.from(result));
+        }
+    });
+    return result;
+}
+
+function decodeFileName(text) {
+    try {
+        return /[^\u0000-\u007f]/.test(text) ? decodeISO8859(text) : decodeURI(text);
+    }
+    catch {
+        return console.log(text) ?? '';
+    }
 }

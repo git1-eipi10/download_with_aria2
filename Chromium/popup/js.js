@@ -22,10 +22,8 @@ document.querySelector('#task_btn').addEventListener('click', event => {
 });
 
 document.querySelector('#purdge_btn').addEventListener('click', event => {
-    aria2RPCCall({method: 'aria2.purgeDownloadResult'}, result => {
-        activeQueue.innerHTML = waitingQueue.innerHTML = stoppedQueue.innerHTML = '';
-        aria2RPCRefresh();
-    });
+    aria2RPCCall({method: 'aria2.tellStopped', params: [0, 99]}, stopped => stopped.forEach(({gid}) => document.querySelector('[data-gid="' + gid + '"]').remove()));
+    aria2RPCCall({method: 'aria2.purgeDownloadResult'});
 });
 
 document.querySelector('#options_btn').addEventListener('click', event => {
@@ -51,7 +49,11 @@ document.querySelector('#submit_btn').addEventListener('click', event => {
 document.querySelector('#upload_btn').style.display = 'browser' in this ? 'none' : 'inline-block';
 document.querySelector('#upload_btn').addEventListener('change', event => {
     var options = createOptions();
-    [...event.target.files].forEach(file => readFileAsBinary(file, data => aria2RPCCall({method: file.name.endsWith('torrent') ? 'aria2.addTorrent' : 'aria2.addMetalink', params: [data, options]}, result => showNotification(file.name))));
+    [...event.target.files].forEach(async file => {
+        var {method, params = []} = file.name.endsWith('torrent') ? {method: 'aria2.addTorrent'} : {method: 'aria2.addMetalink', params: [options]};
+        var data = await promiseFileReader(file, 'readAsDataURL');
+        aria2RPCCall({method, params: [data.slice(data.indexOf(',') + 1), ...params]}, result => showNotification(file.name));
+    });
     event.target.value = '';
     document.body.setAttribute('data-popup', 'main');
 });
@@ -68,7 +70,7 @@ document.querySelector('#manager').addEventListener('change', event => {
 document.querySelectorAll('#manager .block').forEach(block => {
     var field = block.parentNode.querySelector('input');
     block.addEventListener('click', event => {
-        !field.disabled && (block.style.display = field.focus() ?? 'none');
+        block.style.display = field.disabled ? 'block' : field.focus() ?? 'none';
     });
     field.addEventListener('blur', event => {
         block.style.display = 'block';
@@ -103,14 +105,12 @@ function aria2RPCClient() {
         document.querySelector('#active.stats').innerText = numActive;
         document.querySelector('#waiting.stats').innerText = numWaiting;
         document.querySelector('#stopped.stats').innerText = numStopped;
-        document.querySelector('#download.stats').innerText = bytesToFileSize(downloadSpeed) + '/s';
-        document.querySelector('#upload.stats').innerText = bytesToFileSize(uploadSpeed) + '/s';
-        document.querySelector('#message').style.display = 'none';
+        document.querySelector('#download.stats').innerText = getFileSize(downloadSpeed) + '/s';
+        document.querySelector('#upload.stats').innerText = getFileSize(uploadSpeed) + '/s';
         active.forEach((active, index) => printPopupItem(active, index, activeQueue));
         waiting.forEach((waiting, index) => printPopupItem(waiting, index, waitingQueue));
         stopped.forEach((stopped, index) => printPopupItem(stopped, index, stoppedQueue));
     }, error => {
-        document.querySelector('#message').style.display = 'block';
         activeQueue.innerHTML = waitingQueue.innerHTML = stoppedQueue.innerHTML = '';
     }, true);
 }
@@ -128,12 +128,12 @@ function printPopupItem(result, index, queue) {
 }
 
 function updatePopupItem(task, {gid, status, files, bittorrent, completedLength, totalLength, downloadSpeed, uploadSpeed, connections, numSeeders}) {
-    task.querySelector('#name').innerText = bittorrent && bittorrent.info ? bittorrent.info.name : files[0].path ? files[0].path.slice(files[0].path.lastIndexOf('/') + 1) : files[0].uris[0] ? files[0].uris[0].uri : gid;
-    task.querySelector('#local').innerText = bytesToFileSize(completedLength);
+    task.querySelector('#name').innerText = bittorrent ? bittorrent.info ? bittorrent.info.name : files[0].path : files[0].path ? files[0].path.slice(files[0].path.lastIndexOf('/') + 1) : files[0].uris[0].uri;
+    task.querySelector('#local').innerText = getFileSize(completedLength);
     task.querySelector('#infinite').style.display = totalLength === completedLength || downloadSpeed === '0' ? 'inline-block' : printEstimatedTime(task, (totalLength - completedLength) / downloadSpeed) ?? 'none';
     task.querySelector('#connect').innerText = bittorrent ? numSeeders + ' (' + connections + ')' : connections;
-    task.querySelector('#download').innerText = bytesToFileSize(downloadSpeed) + '/s';
-    task.querySelector('#upload').innerText = bytesToFileSize(uploadSpeed) + '/s';
+    task.querySelector('#download').innerText = getFileSize(downloadSpeed) + '/s';
+    task.querySelector('#upload').innerText = getFileSize(uploadSpeed) + '/s';
     task.querySelector('#ratio').innerText = task.querySelector('#ratio').style.width = ((completedLength / totalLength * 10000 | 0) / 100) + '%';
     task.querySelector('#ratio').className = status;
     activeId === gid && updateTaskDetail(task, status, bittorrent, files);
@@ -142,7 +142,7 @@ function updatePopupItem(task, {gid, status, files, bittorrent, completedLength,
 function printQueueItem({gid, bittorrent, totalLength}) {
     var task = document.querySelector('[data-gid="template"]').cloneNode(true);
     task.setAttribute('data-gid', gid);;
-    task.querySelector('#remote').innerText = bytesToFileSize(totalLength);
+    task.querySelector('#remote').innerText = getFileSize(totalLength);
     task.querySelector('#upload').parentNode.style.display = bittorrent ? 'inline-block' : 'none';
     task.querySelector('#remove_btn').addEventListener('click', event => {
         aria2RPCCall({method: ['active', 'waiting', 'paused'].includes(task.getAttribute('status')) ? 'aria2.forceRemove' : 'aria2.removeDownloadResult', params: [gid]},
@@ -192,13 +192,13 @@ function printEstimatedTime(task, number) {
 function printButton(button, resolve) {
     var entry = button.parentNode.querySelector('input');
     button.addEventListener('click', event => {
-        entry.value = aria2RPC[button.getAttribute('data-feed')];
+        entry.value = aria2Store[button.getAttribute('data-feed')];
         typeof resolve === 'function' && resolve(entry.name, entry.value);
     });
 }
 
 function createOptions() {
-    var options = {'header': ['Referer: ' + document.querySelector('#referer').value, 'User-Agent: ' + aria2RPC['useragent']]};
+    var options = {'header': ['Referer: ' + document.querySelector('#referer').value, 'User-Agent: ' + aria2Store['user_agent']]};
     document.querySelectorAll('#create input[name]').forEach(field => options[field.name] = field.value);
     return options;
 }
@@ -242,7 +242,7 @@ function printTaskFiles(table, files) {
             cell.querySelector('#index').innerText = index;
             cell.querySelector('#name').innerText = path.slice(path.lastIndexOf('/') + 1);
             cell.querySelector('#name').title = path;
-            cell.querySelector('#size').innerText = bytesToFileSize(length);
+            cell.querySelector('#size').innerText = getFileSize(length);
             selected === 'true' && manager.push(index);
         });
         cell.querySelector('#index').className = selected === 'true' ? 'active' : 'error';

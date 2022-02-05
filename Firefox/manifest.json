@@ -1,11 +1,13 @@
 {
     "name": "__MSG_extension_name__",
-    "description": "__MSG_extension_description__ - 20f6d32",
-    "version": "3.7.7.1",
+    "description": "__MSG_extension_description__",
+    "version": "3.10.7",
     "manifest_version": 2,
     "permissions": [
         "contextMenus",
         "downloads",
+        "webRequest",
+        "webRequestBlocking",
         "tabs",
         "cookies",
         "notifications",
@@ -15,7 +17,8 @@
     "default_locale" : "en",
     "background": {
         "scripts": [
-            "libs/core.js",
+            "libs/aria2.js",
+            "libs/tools.js",
             "background.js"
         ]
     },
@@ -31,12 +34,12 @@
         "48": "icons/icon48.png"
     },
     "options_ui": {
-        "page": "options/index.html",
+        "page": "options/main.html",
         "open_in_tab": false
     },
     "applications": {
         "gecko": {
-            "id": "ntnguyen@downloadWithAria2"
+            "id": "firefox@downloadWithAria2"
         }
     },
     "developer": {

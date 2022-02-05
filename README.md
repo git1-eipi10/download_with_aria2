@@ -3,7 +3,7 @@
 - This extension is completely rewritten from [chrome-aria2-integration](https://github.com/robbielj/chrome-aria2-integration)
 
 # Usage
-- Indicate running status over toolbar icon
+- Indicate running status over toolbar icon [**Not supported in Manifest V3**]
     - Idle: `Empty`
     - Active: Light Blue `Number`
     - Error: Red `E`
@@ -17,10 +17,12 @@
     - `Options` page for the extension
     - `Global Options` page for aria2 jsonrpc
 - Capture browser downloads
-    - Save captured downloads to other directories [**Firefox Only**]
-    - Capture filter based on file size [**Chromium Only**]
-    - Capture filter based on file extension
-    - Capture filter based on domain names of current tab
+    - Switchable APIs  [**Firefox Only**]
+        - `downloads API`
+        - `webRequest API` [**Default**]
+    - Capture filter based on file size
+    - Capture filter based on file extension [**Firefox only capture MIME type application via webRequest API**]
+    - Capture filter based on domain names of referer
 - Support proxy setting and provide auto matching rule
 
 # Feedback
@@ -34,13 +36,13 @@
 
 #### Windows
 - Download 7-zip standalone console `v21.07` [Windows](https://www.7-zip.org/a/7z2107-extra.7z)
-- Put `7za.exe` and `7za.dll` into the same folder with `Windows Auto Build.cmd`
-- Run `Windows Auto Build.cmd` and follow the instructions
+- Put `7za.exe` and `7za.dll` into the same folder with `win_build.cmd`
+- Run `win_build.cmd` and follow the instructions
 
-#### Linux (Not Completed)
-- Download 7-zip standalone console `v21.07` [Linux 64bit](https://www.7-zip.org/a/7z2107-linux-x64.tar.xz) | [Linux 32bit](https://www.7-zip.org/a/7z2107-linux-x86.tar.xz) | [Linux ARM](https://www.7-zip.org/a/7z2107-linux-arm64.tar.xz)
-- Put `7zz` into the same folder with `Linux Auto Build.sh`
-- Need help to complete shell script
+#### Linux
+- Install `zip` from software sources or elsewhere.
+- Run `linux_build.sh` and follow the instructions
+- After preliminary modification and testing, it is basically usable, but further testing is still required.
 
 # Others
 

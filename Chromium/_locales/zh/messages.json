@@ -5,18 +5,6 @@
     "extension_description": {
         "message": "基于 Chromium / Firefox 浏览器的 Aria2 下载管理器"
     },
-    "common_default": {
-        "message": "默认"
-    },
-    "common_sample": {
-        "message": "样例"
-    },
-    "common_disabled": {
-        "message": "禁用"
-    },
-    "common_advanced": {
-        "message": "进阶"
-    },
     "time_day": {
         "message": "天"
     },
@@ -41,23 +29,20 @@
     "option_basic": {
         "message": "基础"
     },
+    "option_advanced": {
+        "message": "进阶"
+    },
     "option_download": {
         "message": "下载"
     },
-    "option_manager": {
-        "message": "管理设置"
+    "option_default": {
+        "message": "默认"
     },
-    "option_export": {
-        "message": "导出"
-    },
-    "option_import": {
-        "message": "导入"
+    "option_disabled": {
+        "message": "禁用"
     },
     "option_always": {
         "message": "总是"
-    },
-    "option_protocol": {
-        "message": "协议"
     },
     "option_jsonrpc_uri": {
         "message": "JSON-RPC 链接"
@@ -77,6 +62,15 @@
     "option_jsonrpc_refresh_desc": {
         "message": "设置任务管理器刷新间隔"
     },
+    "option_manager": {
+        "message": "管理设置"
+    },
+    "option_export": {
+        "message": "导出"
+    },
+    "option_import": {
+        "message": "导入"
+    },
     "option_useragent": {
         "message": "用户代理"
     },
@@ -89,11 +83,14 @@
     "option_proxy_uri_desc": {
         "message": "设置 \"all-proxy\" 选项的服务器"
     },
-    "option_proxy_resolve": {
-        "message": "代理规则"
+    "option_protocol": {
+        "message": "协议"
     },
-    "option_proxy_resolve_desc": {
-        "message": "为来自列表中的域名的下载添加 \"all-proxy\" 选项"
+    "option_proxy_include": {
+        "message": "代理域名规则"
+    },
+    "option_proxy_include_desc": {
+        "message": "为来自所设置域名的下载添加 \"all-proxy\" 选项"
     },
     "option_capture_mode": {
         "message": "抓取"
@@ -104,41 +101,35 @@
     "option_capture_mode_desc": {
         "message": "根据用户设置抓取浏览器的下载请求"
     },
-    "option_capture_fileSize": {
+    "option_capture_size": {
         "message": "文件大小"
     },
-    "option_capture_fileSize_desc": {
+    "option_capture_size_desc": {
         "message": "抓取文件大小超过设置的下载"
     },
-    "option_capture_fileExt": {
-        "message": "文件后缀"
-    },
-    "option_capture_fileExt_desc": {
-        "message": "抓取匹配列表中的文件后缀的下载"
-    },
-    "option_capture_resolve": {
+    "option_capture_include": {
         "message": "监视域名"
     },
-    "option_capture_resolve_desc": {
-        "message": "监视来自列表中的域名的下载"
+    "option_capture_include_desc": {
+        "message": "抓取来自所设置域名的下载"
     },
-    "option_capture_reject": {
+    "option_capture_exclude": {
         "message": "忽略域名"
     },
+    "option_capture_exclude_desc": {
+        "message": "无视来自所设置域名的下载"
+    },
+    "option_capture_resolve": {
+        "message": "监视文件后缀"
+    },
+    "option_capture_resolve_desc": {
+        "message": "抓取拥有所设置文件后缀的下载"
+    },
+    "option_capture_reject": {
+        "message": "忽略文件后缀"
+    },
     "option_capture_reject_desc": {
-        "message": "忽略来自列表中的域名的下载"
-    },
-    "option_folder_mode": {
-        "message": "保存目录"
-    },
-    "option_folder_browser": {
-        "message": "浏览器"
-    },
-    "option_folder_custom": {
-        "message": "自定义"
-    },
-    "option_folder_mode_desc": {
-        "message": "用于保存已抓取下载的目录"
+        "message": "忽略拥有所设置文件后缀的下载"
     },
     "popup_active": {
         "message": "下载中"

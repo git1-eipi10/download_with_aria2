@@ -5,18 +5,6 @@
     "extension_description": {
         "message": "The Aria2 Download Manager for Chromium / Firefox"
     },
-    "common_default": {
-        "message": "Default"
-    },
-    "common_sample": {
-        "message": "Sample"
-    },
-    "common_disabled": {
-        "message": "Disabled"
-    },
-    "common_advanced": {
-        "message": "Advanced"
-    },
     "time_day": {
         "message": "d"
     },
@@ -41,23 +29,20 @@
     "option_basic": {
         "message": "Basic"
     },
+    "option_advanced": {
+        "message": "Advanced"
+    },
     "option_download": {
         "message": "Download"
     },
-    "option_manager": {
-        "message": "Manage Options"
+    "option_default": {
+        "message": "Default"
     },
-    "option_export": {
-        "message": "Export"
-    },
-    "option_import": {
-        "message": "Import"
+    "option_disabled": {
+        "message": "Disabled"
     },
     "option_always": {
         "message": "Always"
-    },
-    "option_protocol": {
-        "message": "Protocol"
     },
     "option_jsonrpc_uri": {
         "message": "JSON-RPC URI"
@@ -77,6 +62,15 @@
     "option_jsonrpc_refresh_desc": {
         "message": "Set task manager refresh interval"
     },
+    "option_manager": {
+        "message": "Manage Options"
+    },
+    "option_export": {
+        "message": "Export"
+    },
+    "option_import": {
+        "message": "Import"
+    },
     "option_useragent": {
         "message": "User Agent"
     },
@@ -89,10 +83,13 @@
     "option_proxy_uri_desc": {
         "message": "Setting server for \"all-proxy\" option"
     },
-    "option_proxy_resolve": {
-        "message": "Proxy Rules"
+    "option_protocol": {
+        "message": "Protocol"
     },
-    "option_proxy_resolve_desc": {
+    "option_proxy_include": {
+        "message": "Proxy Domain Rules"
+    },
+    "option_proxy_include_desc": {
         "message": "Automatically add \"all-proxy\" option for these domains"
     },
     "option_capture_mode": {
@@ -104,41 +101,35 @@
     "option_capture_mode_desc": {
         "message": "Capture browser downloads based on filters below"
     },
-    "option_capture_fileSize": {
+    "option_capture_size": {
         "message": "File Size"
     },
-    "option_capture_fileSize_desc": {
+    "option_capture_size_desc": {
         "message": "Capture download larger than your setting"
     },
-    "option_capture_fileExt": {
-        "message": "File Extensions"
+    "option_capture_include": {
+        "message": "Include Domains"
     },
-    "option_capture_fileExt_desc": {
-        "message": "Capture download with these file extensions"
+    "option_capture_include_desc": {
+        "message": "Capture download from these domains"
     },
-    "option_capture_resolve": {
-        "message": "Monitor Domains"
+    "option_capture_exclude": {
+        "message": "Exclude Domains"
     },
-    "option_capture_resolve_desc": {
-        "message": "Monitor download from these domains"
-    },
-    "option_capture_reject": {
-        "message": "Ignore Domains"
-    },
-    "option_capture_reject_desc": {
+    "option_capture_exclude_desc": {
         "message": "Ignore download from these domains"
     },
-    "option_folder_mode": {
-        "message": "Save Folder"
+    "option_capture_resolve": {
+        "message": "Includes File Extensions"
     },
-    "option_folder_browser": {
-        "message": "Browser"
+    "option_capture_resolve_desc": {
+        "message": "Capture download with these extensions"
     },
-    "option_folder_custom": {
-        "message": "Custom"
+    "option_capture_reject": {
+        "message": "Exclude File Extensions"
     },
-    "option_folder_mode_desc": {
-        "message": "Download folder for captured downloads"
+    "option_capture_reject_desc": {
+        "message": "Ignore download with these extensions"
     },
     "popup_active": {
         "message": "Active"
