@@ -10,16 +10,16 @@ browser.contextMenus.onClicked.addListener(({linkUrl, pageUrl}, {cookieStoreId})
 
 browser.storage.local.get(null, async json => {
     aria2Store = json['jsonrpc_uri'] ? json : await fetch('/options.json').then(response => response.json());
-    statusIndicator();
+    aria2StartUp();
     !json['jsonrpc_uri'] && chrome.storage.local.set(aria2Store);
-    aria2Store['capture_api'] = aria2Store['capture_api'] ?? '1';
+    aria2Store['capture_api'] = aria2Store['capture_api'] ?? '0';
 });
 
 browser.storage.onChanged.addListener(changes => {
     Object.entries(changes).forEach(([key, {newValue}]) => aria2Store[key] = newValue);
     if (changes['jsonrpc_uri'] || changes['secret_token']) {
-        self.jsonrpc && jsonrpc.readyState === 1 && jsonrpc.close();
-        statusIndicator();
+        aria2RPC.terminate();
+        aria2StartUp();
     }
 });
 
@@ -55,8 +55,9 @@ browser.webRequest.onHeadersReceived.addListener(async ({statusCode, tabId, url,
     }
 }, {urls: ["<all_urls>"], types: ["main_frame", "sub_frame"]}, ["blocking", "responseHeaders"]);
 
-async function statusIndicator() {
-    jsonrpc = await aria2RPCStatus(text => {
+function aria2StartUp() {
+    aria2RPC = new Aria2(aria2Store['jsonrpc_uri'], aria2Store['secret_token']);
+    aria2RPCStatus(text => {
         browser.browserAction.setBadgeText({text: text === '0' ? '' : text});
         browser.browserAction.setBadgeBackgroundColor({color: text ? '#3cc' : '#c33'});
     });
@@ -67,7 +68,7 @@ async function startDownload(url, referer, domain, storeId = 'firefox-default', 
     options['header'] = ['Cookie:', 'Referer: ' + referer, 'User-Agent: ' + aria2Store['user_agent']];
     cookies.forEach(({name, value}) => options['header'][0] += ' ' + name + '=' + value + ';');
     options['all-proxy'] = aria2Store['proxy_include'].includes(domain) ? aria2Store['proxy_server'] : '';
-    aria2RPCCall({method: 'aria2.addUri', params: [[url], options]}, result => showNotification(url));
+    aria2RPC.message('aria2.addUri', [[url], options]).then(result => showNotification(url));
 }
 
 function captureDownload(domain, type, size) {
@@ -104,12 +105,12 @@ function getFileName(disposition) {
 }
 
 function decodeISO8859(text) {
-    var result = [];
+    var decode = [];
     [...text].forEach(s => {
         var c = s.charCodeAt(0);
-        c < 256 && result.push(c);
+        c < 256 && decode.push(c);
     });
-    return new TextDecoder(document.characterSet ?? 'UTF-8').decode(Uint8Array.from(result));
+    return new TextDecoder(document.characterSet ?? 'UTF-8').decode(Uint8Array.from(decode));
 }
 
 function decodeRFC5987(text) {
@@ -119,12 +120,12 @@ function decodeRFC5987(text) {
     if (['utf-8', 'utf8'].includes(head.toLowerCase())) {
         return decodeFileName(body);
     }
-    var result = [];
+    var decode = [];
     (body.match(/%[0-9a-fA-F]{2}|./g) ?? []).forEach(s => {
         var c = s.length === 3 ? parseInt(s.slice(1), 16) : s.charCodeAt(0);
-        c < 256 && result.push(c);
+        c < 256 && decode.push(c);
     });
-    return new TextDecoder(head).decode(Uint8Array.from(result));
+    return new TextDecoder(head).decode(Uint8Array.from(decode));
 }
 
 function decodeRFC2047(text) {
@@ -142,10 +143,10 @@ function decodeRFC2047(text) {
                 var decode = type === 'b' ? [...atob(data)].map(s => s.charCodeAt(0)) :
                     type === 'q' ? (parts[2].match(/=[0-9a-fA-F]{2}|./g) || []).map(v => v.length === 3 ?
                         parseInt(v.slice(1), 16) : v === '_' ? 0x20 : v.charCodeAt(0)) : null;
+                if (decode) {
+                    result += new TextDecoder(code).decode(Uint8Array.from(decode));
+                }
             }
-        }
-        if (decode) {
-            result += new TextDecoder(code).decode(Uint8Array.from(result));
         }
     });
     return result;

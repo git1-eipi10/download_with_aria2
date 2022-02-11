@@ -18,8 +18,8 @@
     - `Global Options` page for aria2 jsonrpc
 - Capture browser downloads
     - Switchable APIs  [**Firefox Only**]
-        - `downloads API`
-        - `webRequest API` [**Default**]
+        - `downloads API` [**Default**]
+        - `webRequest API`
     - Capture filter based on file size
     - Capture filter based on file extension [**Firefox only capture MIME type application via webRequest API**]
     - Capture filter based on domain names of referer
@@ -42,6 +42,11 @@
 #### Linux
 - Install `zip` from software sources or elsewhere.
 - Run `linux_build.sh` and follow the instructions
+- If the browser parameter `firefox` or `chromium` is specified, the extension can be compiled without interaction.
+- When the browser parameter is specified, and then specify the `-i` parameter, the browser can directly install the compiled extension in an interactive manner.(Due to Chrome's security policy, this function is currently only implemented in Firefox, and only supports Firefox Browser Developer Edition)
+- The extension will be generated in the `build` folder under the working directory of the compiled script.
+- Examples:
+    - `./linux_build.sh firefox -i`
 - After preliminary modification and testing, it is basically usable, but further testing is still required.
 
 # Others

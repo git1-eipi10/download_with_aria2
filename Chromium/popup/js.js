@@ -14,16 +14,16 @@ document.querySelectorAll('button[class]:not(:disabled)').forEach((tab, index) =
     });
 });
 
-document.querySelector('#task_btn').addEventListener('click', event => {
-    aria2RPCCall({method: 'aria2.getGlobalOption'}, options => {
-        printOptions(document.querySelectorAll('#create input[name]'), options);
-        document.body.setAttribute('data-popup', 'task');
-    });
+document.querySelector('#task_btn').addEventListener('click', async event => {
+    var options = await aria2RPC.message('aria2.getGlobalOption');
+    printOptions(document.querySelectorAll('#create input[name]'), options);
+    document.body.setAttribute('data-popup', 'task');
 });
 
-document.querySelector('#purdge_btn').addEventListener('click', event => {
-    aria2RPCCall({method: 'aria2.tellStopped', params: [0, 99]}, stopped => stopped.forEach(({gid}) => document.querySelector('[data-gid="' + gid + '"]').remove()));
-    aria2RPCCall({method: 'aria2.purgeDownloadResult'});
+document.querySelector('#purdge_btn').addEventListener('click', async event => {
+    var stopped = await aria2RPC.message('aria2.tellStopped', [0, 99]);
+    stopped.forEach(({gid}) => document.querySelector('[data-gid="' + gid + '"]').remove());
+    aria2RPC.message('aria2.purgeDownloadResult');
 });
 
 document.querySelector('#options_btn').addEventListener('click', event => {
@@ -41,7 +41,10 @@ printButton(document.querySelector('#create [data-feed]'));
 document.querySelector('#submit_btn').addEventListener('click', event => {
     var options = createOptions();
     var entries = document.querySelector('#entries').value.match(/(https?:\/\/|ftp:\/\/|magnet:\?)[^\s\n]+/g);
-    entries && entries.forEach(url => aria2RPCCall({method: 'aria2.addUri', params: [[url], options]}, result => showNotification(url)));
+    entries && entries.forEach(async url => {
+        await aria2RPC.message('aria2.addUri', [[url], options]);
+        showNotification(url);
+    });
     document.querySelector('#entries').value = '';
     document.body.setAttribute('data-popup', 'main');
 });
@@ -52,7 +55,8 @@ document.querySelector('#upload_btn').addEventListener('change', event => {
     [...event.target.files].forEach(async file => {
         var {method, params = []} = file.name.endsWith('torrent') ? {method: 'aria2.addTorrent'} : {method: 'aria2.addMetalink', params: [options]};
         var data = await promiseFileReader(file, 'readAsDataURL');
-        aria2RPCCall({method, params: [data.slice(data.indexOf(',') + 1), ...params]}, result => showNotification(file.name));
+        await aria2RPC.message(method, [data.slice(data.indexOf(',') + 1), ...params]);
+        showNotification(file.name);
     });
     event.target.value = '';
     document.body.setAttribute('data-popup', 'main');
@@ -64,7 +68,7 @@ document.querySelector('#name_btn').addEventListener('click', event => {
 });
 
 document.querySelector('#manager').addEventListener('change', event => {
-    event.target.name && aria2RPCCall({method: 'aria2.changeOption', params: [activeId, {[event.target.name]: event.target.value}]});
+    event.target.name && aria2RPC.message('aria2.changeOption', [activeId, {[event.target.name]: event.target.value}]);
 });
 
 document.querySelectorAll('#manager .block').forEach(block => {
@@ -78,30 +82,30 @@ document.querySelectorAll('#manager .block').forEach(block => {
 });
 
 printButton(document.querySelector('#manager [data-feed]'), (name, value) => {
-    aria2RPCCall({method: 'aria2.changeOption', params: [activeId, {[name]: value}]});
+    aria2RPC.message('aria2.changeOption', [activeId, {[name]: value}]);
 });
 
-document.querySelector('#append button').addEventListener('click', event => {
-    aria2RPCCall({method: 'aria2.changeUri', params: [activeId, 1, [], [document.querySelector('#append input').value]]}, result => document.querySelector('#append input').value = '');
+document.querySelector('#append button').addEventListener('click', async event => {
+    await aria2RPC.message('aria2.changeUri', [activeId, 1, [], [document.querySelector('#append input').value]]);
+    document.querySelector('#append input').value = '';
 });
 
 http.addEventListener('click', event => {
-    event.ctrlKey ? aria2RPCCall({method: 'aria2.changeUri', params: [activeId, 1, [event.target.innerText], []]}) : navigator.clipboard.writeText(event.target.innerText);
+    event.ctrlKey ? aria2RPC.message('aria2.changeUri', [activeId, 1, [event.target.innerText], []]) : navigator.clipboard.writeText(event.target.innerText);
 });
 
-bt.addEventListener('click', event => {
+bt.addEventListener('click', async event => {
     if (event.target.id === 'index') {
         var index = manager.indexOf(event.target.innerText);
         var files = index !== -1 ? [...manager.slice(0, index), ...manager.slice(index + 1)] : [...manager, event.target.innerText];
-        aria2RPCCall({method: 'aria2.changeOption', params: [activeId, {'select-file': files.join()}]}, result => manager = files);
+        await aria2RPC.message('aria2.changeOption', [activeId, {'select-file': files.join()}]);
+        manager = files;
     }
 });
 
 function aria2RPCClient() {
-    aria2RPCCall([
-        {method: 'aria2.getGlobalStat'}, {method: 'aria2.tellActive'},
-        {method: 'aria2.tellWaiting', params: [0, 99]}, {method: 'aria2.tellStopped', params: [0, 99]}
-    ], ([[{numActive, numWaiting, numStopped, downloadSpeed, uploadSpeed}], [active], [waiting], [stopped]]) => {
+    aria2RPC.manager(result => {
+        var [[{numActive, numWaiting, numStopped, downloadSpeed, uploadSpeed}], [active], [waiting], [stopped]] = result;
         document.querySelector('#active.stats').innerText = numActive;
         document.querySelector('#waiting.stats').innerText = numWaiting;
         document.querySelector('#stopped.stats').innerText = numStopped;
@@ -111,8 +115,8 @@ function aria2RPCClient() {
         waiting.forEach((waiting, index) => printPopupItem(waiting, index, waitingQueue));
         stopped.forEach((stopped, index) => printPopupItem(stopped, index, stoppedQueue));
     }, error => {
-        activeQueue.innerHTML = waitingQueue.innerHTML = stoppedQueue.innerHTML = '';
-    }, true);
+        activeQueue.innerHTML = waitingQueue.innerHTML = stoppedQueue.innerHTML = ''
+    }, aria2Store['refresh_interval']);
 }
 
 function printPopupItem(result, index, queue) {
@@ -144,33 +148,33 @@ function printQueueItem({gid, bittorrent, totalLength}) {
     task.setAttribute('data-gid', gid);;
     task.querySelector('#remote').innerText = getFileSize(totalLength);
     task.querySelector('#upload').parentNode.style.display = bittorrent ? 'inline-block' : 'none';
-    task.querySelector('#remove_btn').addEventListener('click', event => {
-        aria2RPCCall({method: ['active', 'waiting', 'paused'].includes(task.getAttribute('status')) ? 'aria2.forceRemove' : 'aria2.removeDownloadResult', params: [gid]},
-        result => ['complete', 'error', 'paused', 'removed'].includes(task.getAttribute('status')) ? task.remove() : task.querySelector('#name').innerText = '⏳');
+    task.querySelector('#remove_btn').addEventListener('click', async event => {
+        var method = ['active', 'waiting', 'paused'].includes(task.getAttribute('status')) ? 'aria2.forceRemove' : 'aria2.removeDownloadResult';
+        await aria2RPC.message(method, [gid]);
+        ['complete', 'error', 'paused', 'removed'].includes(task.getAttribute('status')) ? task.remove() : task.querySelector('#name').innerText = '⏳';
     });
-    task.querySelector('#invest_btn').addEventListener('click', event => {
+    task.querySelector('#invest_btn').addEventListener('click', async event => {
         activeId = gid;
-        aria2RPCCall([
-            {method: 'aria2.getOption', params: [gid]}, {method: 'aria2.tellStatus', params: [gid]}
-        ], ([[options], [{status, bittorrent, files}]]) => {
-            printOptions(document.querySelectorAll('#manager [name]'), options);
-            updateTaskDetail(task, status, bittorrent, files);
-            document.body.setAttribute('data-popup', 'aria2');
-            document.querySelector('#manager').setAttribute('data-aria2', bittorrent ? 'bt' : 'http');
-            document.querySelector('#manager #remote').innerText = task.querySelector('#remote').innerText;
-        });
+        var {status, bittorrent, files} = await aria2RPC.message('aria2.tellStatus', [gid]);
+        var options = await aria2RPC.message('aria2.getOption', [gid]);
+        printOptions(document.querySelectorAll('#manager [name]'), options);
+        updateTaskDetail(task, status, bittorrent, files);
+        document.body.setAttribute('data-popup', 'aria2');
+        document.querySelector('#manager').setAttribute('data-aria2', bittorrent ? 'bt' : 'http');
+        document.querySelector('#manager #remote').innerText = task.querySelector('#remote').innerText;
     });
-    task.querySelector('#retry_btn').addEventListener('click', event => {
-        aria2RPCCall([
-            {method: 'aria2.getFiles', params: [gid]}, {method: 'aria2.getOption', params: [gid]},
-            {method: 'aria2.removeDownloadResult', params: [gid]}
-        ], ([[files], [options]]) => {
-            aria2RPCCall({method: 'aria2.addUri', params: [files[0].uris.map(({uri}) => uri), options]},
-            result => task.remove());
-        });
+    task.querySelector('#retry_btn').addEventListener('click', async event => {
+        var {files: [{path, uris}]} = await aria2RPC.message('aria2.tellStatus', [gid]);
+        var options = await aria2RPC.message('aria2.getOption', [gid]);
+        options['out'] = path ? path.slice(path.lastIndexOf('/') + 1) : '';
+        await aria2RPC.message('aria2.addUri', [uris.map(({uri}) => uri), options]);
+        await aria2RPC.message('aria2.removeDownloadResult', [gid]);
+        task.remove();
     });
-    task.querySelector('#meter').addEventListener('click', event => {
-        aria2RPCCall({method: task.getAttribute('status') === 'paused' ? 'aria2.unpause' : 'aria2.pause', params: [gid]}, result => task.querySelector('#name').innerText = '⏳');
+    task.querySelector('#meter').addEventListener('click', async event => {
+        var method = task.getAttribute('status') === 'paused' ? 'aria2.unpause' : 'aria2.pause';
+        await aria2RPC.message(method, [gid]);
+        task.querySelector('#name').innerText = '⏳';
     });
     return task;
 }

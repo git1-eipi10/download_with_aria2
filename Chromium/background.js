@@ -14,7 +14,7 @@ chrome.contextMenus.onClicked.addListener(({linkUrl, pageUrl}) => {
 
 chrome.storage.local.get(null, async json => {
     aria2Store = json['jsonrpc_uri'] ? json : await fetch('/options.json').then(response => response.json());
-    statusIndicator();
+    aria2StartUp();
     !json['jsonrpc_uri'] && chrome.storage.local.set(aria2Store);
 });
 
@@ -46,7 +46,6 @@ chrome.downloads.onChanged.addListener(item => {
 
         captureDownload(download_info.domain, getFileExtension(download_info.filename), download_info.fileSize) &&
             chrome.downloads.cancel(item.id, () => {
-                console.log(download_info);
                 var options = {
                     'out': download_info.filename,
                     'dir': download_info.path.slice(0, download_info.path.indexOf(download_info.filename))
@@ -59,13 +58,14 @@ chrome.downloads.onChanged.addListener(item => {
             });
     }
     if (item['jsonrpc_uri'] || item['secret_token']) {
-        self.jsonrpc && jsonrpc.readyState === 1 && jsonrpc.close();
-        statusIndicator();
+        aria2RPC.terminate();
+        aria2StartUp();
     }
 });
 
-async function statusIndicator() {
-    jsonrpc = await aria2RPCStatus(text => {
+function aria2StartUp() {
+    aria2RPC = new Aria2(aria2Store['jsonrpc_uri'], aria2Store['secret_token']);
+    aria2RPC.indicator(text => {
         chrome.browserAction.setBadgeText({text: text === '0' ? '' : text});
         chrome.browserAction.setBadgeBackgroundColor({color: text ? '#3cc' : '#c33'});
     });
@@ -76,7 +76,7 @@ function startDownload(url, referer, domain, options = {}) {
         options['header'] = ['Cookie:', 'Referer: ' + referer, 'User-Agent: ' + aria2Store['user_agent']];
         cookies.forEach(({name, value}) => options['header'][0] += ' ' + name + '=' + value + ';');
         options['all-proxy'] = aria2Store['proxy_include'].includes(domain) ? aria2Store['proxy_server'] : '';
-        aria2RPCCall({method: 'aria2.addUri', params: [[url], options]}, result => showNotification(url));
+        aria2RPC.message('aria2.addUri', [[url], options]).then(result => showNotification(url));
     });
 }
 
