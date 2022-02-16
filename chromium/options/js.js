@@ -1,4 +1,4 @@
-location.search === '?popup' ? document.querySelector('#manager').style.display =  'none' : document.querySelector('#back_btn').style.display = 'none';
+location.search === '?popup' ? document.querySelector('#manager').style.display =  'none' : document.querySelector('#popup_btn').style.display = 'none';
 
 document.querySelectorAll('[data-option] > button, [data-global] > button').forEach((tab, index) => {
     var type = index < 3 ? 'option' : 'global';
@@ -10,6 +10,10 @@ document.querySelectorAll('[data-option] > button, [data-global] > button').forE
 });
 
 document.querySelector('#back_btn').addEventListener('click', event => {
+    document.body.setAttribute('data-prefs', 'option');
+});
+
+document.querySelector('#popup_btn').addEventListener('click', event => {
     open('/popup/index.html', '_self');
 });
 
@@ -32,12 +36,10 @@ document.querySelector('#import_btn').addEventListener('change', async event => 
 });
 
 document.querySelector('#aria2_btn').addEventListener('click', event => {
-    document.body.getAttribute('data-prefs') === 'global' ? document.body.setAttribute('data-prefs', 'option') :
-        aria2RPC.message('aria2.getGlobalOption').then(options => {
-            document.querySelector('#aria2_btn').style.display = 'inline-block';
-            printOptions(document.querySelectorAll('#global [name]'), options);
-            document.body.setAttribute('data-prefs', 'global');
-        });
+    aria2RPC.message('aria2.getGlobalOption').then(options => {
+        printOptions(document.querySelectorAll('#global [name]'), options);
+        document.body.setAttribute('data-prefs', 'global');
+    });
 });
 
 document.querySelector('#global').addEventListener('change', event => {
@@ -54,11 +56,10 @@ function aria2RPCClient() {
     document.querySelectorAll('#option [name]').forEach(field => {
         var value = aria2Store[field.name];
         var array = Array.isArray(value);
-        var token = field.getAttribute('data-token');
         var multi = field.getAttribute('data-multi');
-        field.value = array ? value.join(' ') : token ? value.slice(token.length) : multi ? value / multi : value;
+        field.value = array ? value.join(' ') : multi ? value / multi : value;
         field.addEventListener('change', event => {
-            aria2Store[field.name] = array ? field.value.split(/[\s\n,]+/) : token ? token + field.value : multi ? field.value * multi : field.value;
+            aria2Store[field.name] = array ? field.value.split(/[\s\n,]+/) : multi ? field.value * multi : field.value;
             chrome.storage.local.set(aria2Store);
         });
     });
